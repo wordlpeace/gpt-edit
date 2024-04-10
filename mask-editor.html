@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Image Mask Creator</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #f7f7f7;
+        }
+
+        #canvas-container {
+            border: 2px solid #ccc;
+            width: 1024px;
+            height: 1024px;
+            position: relative;
+            margin: 20px;
+            display: inline-block;
+        }
+
+        canvas {
+            position: absolute;
+            left: 0;
+            top: 0;
+        }
+
+        #backgroundCanvas {
+            z-index: 1;
+        }
+
+        #drawingCanvas {
+            z-index: 2;
+        }
+
+        .controls {
+            display: inline-block;
+            margin: 20px;
+            vertical-align: top;
+        }
+
+        .controls input[type="file"] {
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        .controls .btn {
+            padding: 10px 20px;
+            margin-bottom: 10px;
+            cursor: pointer;
+        }
+
+        /* Custom button styles */
+        .btn-custom {
+            background-color: #ee00ff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.3s ease;
+        }
+
+        .btn-custom:hover {
+            background-color: #0056b3;
+        }
+
+        @media (max-width: 768px) {
+            #canvas-container {
+                width: 90%;
+                height: auto;
+            }
+        }
+
+        .custom-file-input {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0,0,0,0);
+            border: 0;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loader {
+            border: 8px solid #f3f3f3; /* Light grey */
+            border-top: 8px solid #3498db; /* Blue */
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        .input-custom {
+            display: block;
+            width: 100%; /* 宽度匹配容器 */
+            padding: 10px 20px;
+            margin-bottom: 10px; /* 和按钮间隔一致 */
+            font-size: 16px; /* 字体大小 */
+            line-height: 1.5;
+            color: #495057;
+            background-color: #fff;
+            background-clip: padding-box;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            transition: border-color .15s ease-in-out,box-shadow .15s ease-in-out;
+        }
+
+        .input-custom:focus {
+            color: #495057;
+            background-color: #fff;
+            border-color: #80bdff;
+            outline: 0;
+            box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+        }
+    </style>
+</head>
+<body>
+<div class="controls">
+    <input type="text" id="authToken" placeholder="Authorization Token" class="input-custom"/>
+    <button id="uploadBtn" class="btn btn-custom">选择文件</button>
+    <input type="file" id="upload" class="custom-file-input" accept="image/*"/>
+    <button id="export" class="btn btn-custom">生成图片</button>
+    <button id="resetBtn" class="btn btn-custom">重置</button>
+    <div id="loadingIndicator" style="display: none;" class="loader"></div>
+</div>
+<div id="canvas-container">
+    <canvas id="backgroundCanvas"></canvas>
+    <canvas id="drawingCanvas"></canvas>
+</div>
+<script>
+    const backgroundCanvas = document.getElementById('backgroundCanvas');
+    const drawingCanvas = document.getElementById('drawingCanvas');
+    const backgroundCtx = backgroundCanvas.getContext('2d');
+    const drawingCtx = drawingCanvas.getContext('2d');
+    let isDrawing = false;
+
+    function initializeCanvas(width, height) {
+        backgroundCanvas.width = width;
+        backgroundCanvas.height = height;
+        drawingCanvas.width = width;
+        drawingCanvas.height = height;
+    }
+
+    function startDrawing(e) {
+        isDrawing = true;
+        draw(e); // 开始绘制
+    }
+
+    function draw(e) {
+        if (!isDrawing) return;
+        const rect = drawingCanvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        drawingCtx.lineWidth = 50; // 笔触大小
+        drawingCtx.lineCap = 'round';
+        drawingCtx.strokeStyle = 'rgba(0,0,0,0.5)'; // 灰色半透明
+
+        drawingCtx.lineTo(x, y);
+        drawingCtx.stroke();
+        drawingCtx.beginPath();
+        drawingCtx.moveTo(x, y);
+    }
+
+    function stopDrawing() {
+        isDrawing = false;
+        drawingCtx.beginPath();
+    }
+
+
+    function handleFileSelect(e) {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+
+
+        reader.onload = function (event) {
+            const img = new Image();
+            img.onload = function () {
+                const validSizes = [
+                    {width: 1024, height: 1024},
+                ];
+                const isValidSize = validSizes.some(size => img.width === size.width && img.height === size.height);
+
+                if (!isValidSize) {
+                    alert("错误: 图片尺寸必须是 1024x1024");
+                    return;
+                }
+
+                initializeCanvas(img.width, img.height);
+                backgroundCtx.drawImage(img, 0, 0, img.width, img.height);
+            };
+            img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    document.getElementById('upload').addEventListener('change', handleFileSelect);
+    drawingCanvas.addEventListener('mousedown', startDrawing);
+    drawingCanvas.addEventListener('mousemove', draw);
+    drawingCanvas.addEventListener('mouseup', stopDrawing);
+    drawingCanvas.addEventListener('mouseout', stopDrawing);
+
+    function base64ToBlob(base64, mimeType) {
+        // 解码base64
+        const byteString = atob(base64.split(',')[1]);
+        // 获取MIME类型
+        const mimeString = base64.split(',')[0].split(':')[1].split(';')[0];
+
+        const ab = new ArrayBuffer(byteString.length);
+        const ia = new Uint8Array(ab);
+        for (let i = 0; i < byteString.length; i++) {
+            ia[i] = byteString.charCodeAt(i);
+        }
+
+        return new Blob([ab], {type: mimeType});
+    }
+
+    document.getElementById('export').addEventListener('click', function () {
+
+        document.getElementById('loadingIndicator').style.display = 'block';
+
+        const authToken = document.getElementById('authToken').value;
+        if (!authToken) {
+            alert("Authorization Token是必须的！");
+            return;
+        }
+
+        const promptValue = prompt("请输入prompt值:");
+
+        // 检查用户是否输入了值
+        if (!authToken || !promptValue) {
+            alert("所有字段都需要填写！");
+            document.getElementById('loadingIndicator').style.display = 'none';
+            return;
+        }
+
+        const backgroundCanvas = document.getElementById('backgroundCanvas');
+        const drawingCanvas = document.getElementById('drawingCanvas');
+        const imageData = backgroundCanvas.toDataURL('image/png');
+
+
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCanvas.width = drawingCanvas.width;
+        tempCanvas.height = drawingCanvas.height;
+        tempCtx.fillStyle = '#ffffff'; // 白色填充
+        tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+        tempCtx.drawImage(drawingCanvas, 0, 0);
+        tempCtx.globalCompositeOperation = 'destination-atop';
+        tempCtx.drawImage(backgroundCanvas, 0, 0);
+
+        const maskData = tempCanvas.toDataURL('image/png');
+
+
+        const maskBlob = base64ToBlob(maskData, 'image/png');
+        const imageBlob = base64ToBlob(imageData, 'image/png');
+
+        const maskFile = new File([maskBlob], 'mask.png', {type: 'image/png'});
+        const imageFile = new File([imageBlob], 'image.jpg', {type: 'image/png'});
+
+
+        // 创建FormData对象
+        const formData = new FormData();
+        formData.append('mask', maskFile);
+        formData.append('image', imageFile);
+        formData.append('prompt', promptValue)
+        formData.append('n', '1')
+
+        // 发送POST请求到服务器端的接口
+        fetch('https://api.oaifree.com/v1/images/edits', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + authToken,
+            },
+            body: formData
+        })
+            .then(response => {
+                document.getElementById('loadingIndicator').style.display = 'none';
+
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    response.data.message === 'You have sent too many messages to the model. Please try again later';
+                    alert('您发送的消息太多，请稍后再试');
+                }
+            })
+            .then(data => {
+                const imageUrl = data.data[0].url;
+
+                const img = new Image();
+                img.onload = function () {
+                    const canvasContainer = document.getElementById('canvas-container');
+                    img.style.position = 'absolute';
+                    img.style.zIndex = '3';
+                    img.style.left = '0';
+                    img.style.top = '0';
+                    canvasContainer.appendChild(img);
+                };
+                img.src = imageUrl;
+            })
+            .catch(error => {
+                document.getElementById('loadingIndicator').style.display = 'none';
+                alert('生成失败');
+            });
+    });
+
+    document.getElementById('uploadBtn').addEventListener('click', function() {
+        document.getElementById('upload').value = '';
+        document.getElementById('upload').click();
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', function() {
+        // Clear the drawing canvas
+        drawingCtx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
+
+        // Clear the background canvas
+        backgroundCtx.clearRect(0, 0, backgroundCanvas.width, backgroundCanvas.height);
+
+        // Remove any img elements added inside the canvas-container
+        const canvasContainer = document.getElementById('canvas-container');
+        const images = canvasContainer.getElementsByTagName('img');
+        while(images.length > 0) {
+            canvasContainer.removeChild(images[0]);
+        }
+
+        document.getElementById('upload').value = '';
+    });
+
+
+
+
+
+
+</script>
+</body>
+</html>
